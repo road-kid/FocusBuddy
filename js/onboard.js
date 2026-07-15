@@ -286,21 +286,48 @@ const Onboard = {
     this._saveConfigFromInputs();
 
     const btn = document.getElementById('btn-onboard-generate');
-    const progress = document.getElementById('onboard-generate-progress');
+    const progressEl = document.getElementById('onboard-generate-progress');
     btn.disabled = true;
     btn.textContent = '生成中...';
-    progress.style.display = 'block';
+    progressEl.style.display = 'block';
+
+    const renderProgress = (progress) => {
+      const stages = AI.STAGES;
+      const currentStage = progress.stage || 0;
+      const stepsHtml = stages.map(s => {
+        const isActive = s.id === currentStage;
+        const isDone = s.id < currentStage;
+        return `
+          <div class="progress-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}">
+            <div class="progress-step-icon">
+              ${isDone ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : s.id}
+            </div>
+            <div class="progress-step-info">
+              <div class="progress-step-label">${Utils.escapeHtml(s.label)}</div>
+              <div class="progress-step-desc">${Utils.escapeHtml(s.desc)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      progressEl.innerHTML = `
+        <div class="ai-progress-container" style="margin-top: var(--space-md);">
+          <div class="ai-progress-steps">${stepsHtml}</div>
+          <div class="ai-progress-bar"><div class="ai-progress-bar-fill" style="width: ${(currentStage / stages.length) * 100}%;"></div></div>
+        </div>
+      `;
+    };
 
     try {
-      this.generatedPlan = await AI.generateGoalPlan(goalText, null, null, (msg) => {
-        progress.textContent = msg;
+      renderProgress({ stage: 1 });
+      this.generatedPlan = await AI.generateGoalPlan(goalText, null, null, (progress) => {
+        renderProgress(progress);
       });
 
-      progress.style.display = 'none';
+      progressEl.style.display = 'none';
       this._showPlanPreview();
     } catch (error) {
-      progress.style.color = 'var(--state-error)';
-      progress.textContent = '生成失败: ' + (error.message || '未知错误');
+      progressEl.innerHTML = `<span style="color: var(--state-error);">生成失败: ${Utils.escapeHtml(error.message || '未知错误')}</span>`;
       btn.disabled = false;
       btn.textContent = '重试生成';
     }

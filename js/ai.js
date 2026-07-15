@@ -1,4 +1,12 @@
 const AI = {
+  // Stage definitions for progress reporting
+  STAGES: [
+    { id: 1, label: '解析目标特征', desc: '分析目标类型、周期与难度' },
+    { id: 2, label: '规划任务结构', desc: '构建阶段性任务框架' },
+    { id: 3, label: '拆解子任务', desc: '细化可执行的每日动作' },
+    { id: 4, label: '完善任务细则', desc: '配置量化模式、周期与间隔重复' },
+  ],
+
   async generateGoalPlan(userGoal, userLevel, duration, onProgress) {
     const config = Storage.getConfig();
     if (!config.apiUrl || !config.apiKey || !config.model) {
@@ -12,7 +20,9 @@ const AI = {
     const systemPrompt = Prompts.generateGoalSystemPrompt(userRole);
     const userPrompt = Prompts.generateGoalUserPrompt(userGoal, userLevel, duration);
 
-    if (onProgress) onProgress('正在连接 AI...');
+    // Report stage 1
+    this._reportStage(onProgress, 1);
+    await this._delay(300);
 
     const body = {
       model: config.model,
@@ -23,9 +33,14 @@ const AI = {
       temperature: 0.7,
     };
 
+    // Report stage 2 (during API call)
+    this._reportStage(onProgress, 2);
+
     const data = await this._callChatAPI(config, body);
 
-    if (onProgress) onProgress('正在解析计划...');
+    // Report stage 3 (parsing)
+    this._reportStage(onProgress, 3);
+    await this._delay(200);
 
     const content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -34,7 +49,23 @@ const AI = {
     }
 
     const planData = JSON.parse(jsonMatch[0]);
+
+    // Report stage 4 (finalizing)
+    this._reportStage(onProgress, 4);
+    await this._delay(200);
+
     return this.convertToPlan(planData);
+  },
+
+  _reportStage(onProgress, stageId) {
+    if (onProgress) {
+      const stage = this.STAGES.find(s => s.id === stageId);
+      onProgress({ stage: stageId, total: this.STAGES.length, label: stage?.label || '', desc: stage?.desc || '' });
+    }
+  },
+
+  _delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   },
 
   async chat(userGoal, currentPlan, userMessage, conversationHistory, onProgress) {
@@ -60,10 +91,16 @@ const AI = {
     }
     messages.push({ role: 'user', content: userPromptContent });
 
-    if (onProgress) onProgress('正在连接 AI...');
+    this._reportStage(onProgress, 1);
+    await this._delay(200);
+    this._reportStage(onProgress, 2);
 
     const body = { model: config.model, messages, temperature: 0.7 };
     const data = await this._callChatAPI(config, body);
+
+    this._reportStage(onProgress, 3);
+    await this._delay(150);
+    this._reportStage(onProgress, 4);
 
     const content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -160,6 +197,8 @@ const AI = {
         totalTasks: leafNodes.length,
         duration: durationDays,
         dailyTasks: Math.ceil(leafNodes.filter(n => n.resetCycle === 'daily').length),
+        stages: nodes.filter(n => !n.parentId).length,
+        maxDepth: Math.max(...nodes.map(n => n.depth || 1)),
       },
     };
   },

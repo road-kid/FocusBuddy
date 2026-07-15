@@ -2110,6 +2110,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: #FB923C;
 }
 
+.tree-badge-daily {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ADE80;
+}
+
 /* ========== Bottom Buttons ========== */
 .btn-execute {
   flex: 1;
@@ -2146,6 +2151,100 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .btn-adjust:active {
   opacity: 0.8;
+}
+
+/* ========== AI Progress Steps ========== */
+.ai-progress-container {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-bg-card-alt);
+  border-radius: var(--radius-md);
+}
+
+.ai-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+
+.progress-step.active,
+.progress-step.done {
+  opacity: 1;
+}
+
+.progress-step-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.progress-step.active .progress-step-icon {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #FFFFFF;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+
+.progress-step.done .progress-step-icon {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: var(--state-success);
+  color: var(--state-success);
+}
+
+.progress-step-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.progress-step-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  transition: color 0.3s;
+}
+
+.progress-step:not(.active):not(.done) .progress-step-label {
+  color: var(--color-text-tertiary);
+}
+
+.progress-step-desc {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  margin-top: 1px;
+}
+
+.ai-progress-bar {
+  height: 3px;
+  background: var(--color-bg-card);
+  border-radius: 2px;
+  margin-top: var(--space-md);
+  overflow: hidden;
+}
+
+.ai-progress-bar-fill {
+  height: 100%;
+  background: var(--color-primary-gradient);
+  border-radius: 2px;
+  transition: width 0.5s cubic-bezier(.4,0,.2,1);
 }
 
 /* ========== Desktop Adaptation ========== */

@@ -214,7 +214,6 @@ const Chat = {
 
     Storage.addGoal(goal);
 
-    // Add a default top-level task
     const nodeId = Utils.generateId();
     Storage.addNode({
       id: nodeId,
@@ -243,6 +242,8 @@ const Chat = {
     }
     let planHtml = '';
     if (msg.plan) planHtml = this.renderPlanCard(msg.plan);
+    let progressHtml = '';
+    if (msg.progress) progressHtml = this.renderProgressSteps(msg.progress);
     return `
       <div class="chat-row">
         <div class="chat-avatar" style="background: var(--color-primary-gradient);">
@@ -250,8 +251,44 @@ const Chat = {
         </div>
         <div class="chat-bubble chat-bubble--ai">
           <div class="chat-bubble-text">${Utils.escapeHtml(msg.content)}</div>
+          ${progressHtml}
           ${planHtml}
         </div>
+      </div>
+    `;
+  },
+
+  /* ========== Progress Steps UI ========== */
+
+  renderProgressSteps(progress) {
+    const stages = AI.STAGES;
+    const currentStage = progress.stage || 0;
+    const stepsHtml = stages.map(s => {
+      const isActive = s.id === currentStage;
+      const isDone = s.id < currentStage;
+      return `
+        <div class="progress-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}">
+          <div class="progress-step-icon">
+            ${isDone ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : s.id}
+          </div>
+          <div class="progress-step-info">
+            <div class="progress-step-label">${Utils.escapeHtml(s.label)}</div>
+            <div class="progress-step-desc">${Utils.escapeHtml(s.desc)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="ai-progress-container">
+        <div class="ai-progress-steps">
+          ${stepsHtml}
+        </div>
+        ${currentStage < stages.length ? `
+          <div class="ai-progress-bar">
+            <div class="ai-progress-bar-fill" style="width: ${(currentStage / stages.length) * 100}%;"></div>
+          </div>
+        ` : ''}
       </div>
     `;
   },
@@ -272,13 +309,15 @@ const Chat = {
         <div class="plan-card-meta">
           <div class="plan-meta-item"><i data-lucide="calendar" style="width: 14px; height: 14px; color: var(--color-text-tertiary);"></i><span>${Utils.formatDate(plan.goal.startDate)} — ${Utils.formatDate(plan.goal.endDate)}</span></div>
           <div class="plan-meta-item"><i data-lucide="layers" style="width: 14px; height: 14px; color: var(--color-text-tertiary);"></i><span>${plan.summary.totalTasks} 个可执行任务 · ${plan.summary.duration} 天</span></div>
-          <div class="plan-meta-item"><i data-lucide="list-checks" style="width: 14px; height: 14px; color: var(--color-text-tertiary);"></i><span>每日约 ${plan.summary.dailyTasks} 个核心任务</span></div>
+          <div class="plan-meta-item"><i data-lucide="git-branch" style="width: 14px; height: 14px; color: var(--color-text-tertiary);"></i><span>${plan.summary.stages || 0} 个阶段 · 最深 ${plan.summary.maxDepth || 1} 层</span></div>
         </div>
         <div class="plan-card-divider"></div>
         <div class="plan-tree-label">任务结构</div>
         <div class="plan-tree" id="plan-tree">${treeHtml}</div>
         <div class="plan-card-divider"></div>
-        <div class="plan-card-footer">自动进度同步 · 多层任务管理</div>
+        <div class="plan-card-footer">
+          量化支持加总/更新 · 周期重置 · 艾宾浩斯间隔重复
+        </div>
       </div>
     `;
   },
@@ -305,12 +344,15 @@ const Chat = {
       }
       html += `<span class="tree-node-title">${Utils.escapeHtml(node.title)}</span>`;
       if (node.progressType === 'quantify') {
+        const modeLabel = node.quantifyMode === 'accumulate' ? '加总' : '更新';
         const unit = node.targetUnit ? ` ${node.targetValue}${node.targetUnit}` : '';
-        html += `<span class="tree-badge tree-badge-quantify">${node.resetCycle === 'daily' ? '每日' : '累计'}${unit}</span>`;
+        html += `<span class="tree-badge tree-badge-quantify">${modeLabel}${unit}</span>`;
       } else if (node.spacedRepetition) {
-        html += '<span class="tree-badge tree-badge-memory">记忆</span>';
+        html += '<span class="tree-badge tree-badge-memory">艾宾浩斯</span>';
       } else if (node.resetCycle === 'weekly' || node.resetCycle === 'monthly') {
         html += `<span class="tree-badge tree-badge-cycle">${node.resetCycle === 'weekly' ? '每周' : '每月'}</span>`;
+      } else if (node.resetCycle === 'daily') {
+        html += '<span class="tree-badge tree-badge-daily">每日</span>';
       }
       html += `</div>`;
       if (hasChildren) {
@@ -325,22 +367,29 @@ const Chat = {
   },
 
   addUserMessage(content) { this.messages.push({ role: 'user', content }); },
-  addAIMessage(content, plan = null) { this.messages.push({ role: 'ai', content, plan }); },
+  addAIMessage(content, plan = null, progress = null) { this.messages.push({ role: 'ai', content, plan, progress }); },
 
-  addTypingIndicator() {
+  addProgressMessage(progress) {
     const chatArea = document.getElementById('chat-messages');
     if (!chatArea) return;
-    const el = document.createElement('div');
-    el.className = 'chat-row';
-    el.id = 'typing-indicator';
-    el.innerHTML = `<div class="chat-avatar" style="background: var(--color-primary-gradient);"><i data-lucide="sparkles" style="width: 14px; height: 14px; color: #FFFFFF;"></i></div><div class="chat-bubble chat-bubble--ai"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
-    chatArea.appendChild(el);
-    lucide.createIcons();
+    const existing = document.getElementById('ai-progress-msg');
+    if (existing) {
+      existing.outerHTML = this.renderMessage({ role: 'ai', content: '正在为你制定计划...', progress });
+      this._bindTreeEvents();
+      lucide.createIcons();
+    } else {
+      const el = document.createElement('div');
+      el.id = 'ai-progress-msg';
+      el.innerHTML = this.renderMessage({ role: 'ai', content: '正在为你制定计划...', progress });
+      chatArea.appendChild(el);
+      this._bindTreeEvents();
+      lucide.createIcons();
+    }
     this.scrollToBottom();
   },
 
-  removeTypingIndicator() {
-    const el = document.getElementById('typing-indicator');
+  removeProgressMessage() {
+    const el = document.getElementById('ai-progress-msg');
     if (el) el.remove();
   },
 
@@ -356,7 +405,6 @@ const Chat = {
     this.addUserMessage(text);
     input.value = '';
     this.updateMessagesView();
-    this.addTypingIndicator();
     this.isGenerating = true;
 
     try {
@@ -366,7 +414,7 @@ const Chat = {
         await this._handleAdjustment(text);
       }
     } catch (error) {
-      this.removeTypingIndicator();
+      this.removeProgressMessage();
       this.addAIMessage('抱歉，处理请求时出错：' + (error.message || '未知错误'));
       this.updateMessagesView();
     } finally {
@@ -379,18 +427,16 @@ const Chat = {
     const userLevel = Utils.userRoles.find(r => r.id === config.userRole)?.name || '';
     const duration = this._parseDuration(text);
 
+    this.addProgressMessage({ stage: 1 });
+
     const plan = await AI.generateGoalPlan(text, userLevel, duration, (progress) => {
-      const typingEl = document.getElementById('typing-indicator');
-      if (typingEl) {
-        const bubble = typingEl.querySelector('.chat-bubble');
-        if (bubble) bubble.innerHTML = `<span style="font-size: var(--text-sm); color: var(--color-text-secondary);">${progress}</span>`;
-      }
+      this.addProgressMessage(progress);
     });
 
     this.currentPlan = plan;
     this.chatState = 'plan_shown';
-    this.removeTypingIndicator();
-    this.addAIMessage('好的！我已经为你制定了详细的分层计划，下面是任务结构：', plan);
+    this.removeProgressMessage();
+    this.addAIMessage('计划已生成！以下是为你定制的分层任务体系：', plan);
     this.updateMessagesView();
     this._updateBottomActions();
     this._bindTreeEvents();
@@ -398,16 +444,14 @@ const Chat = {
   },
 
   async _handleAdjustment(text) {
+    this.addProgressMessage({ stage: 1 });
+
     const conversationHistory = this.messages.map(m => ({ role: m.role, content: m.content }));
     const result = await AI.chat(this.currentPlan.goal.title, this.currentPlan, text, conversationHistory, (progress) => {
-      const typingEl = document.getElementById('typing-indicator');
-      if (typingEl) {
-        const bubble = typingEl.querySelector('.chat-bubble');
-        if (bubble) bubble.innerHTML = `<span style="font-size: var(--text-sm); color: var(--color-text-secondary);">${progress}</span>`;
-      }
+      this.addProgressMessage(progress);
     });
 
-    this.removeTypingIndicator();
+    this.removeProgressMessage();
     if (result.type === 'plan' && result.plan) {
       this.currentPlan = result.plan;
       this.chatState = 'plan_shown';
