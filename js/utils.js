@@ -13,6 +13,11 @@ const Utils = {
     return `${d.getMonth() + 1}月${d.getDate()}日`;
   },
 
+  formatDateISO(date) {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
   formatTime(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -21,6 +26,13 @@ const Utils = {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  },
+
+  formatDuration(minutes) {
+    if (minutes < 60) return `${minutes}分钟`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}小时${m}分钟` : `${h}小时`;
   },
 
   getTodayStr() {
@@ -45,6 +57,52 @@ const Utils = {
       dates.push(date);
     }
     return dates;
+  },
+
+  getWeekStart(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  },
+
+  getWeekEnd(date) {
+    const start = this.getWeekStart(date);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  },
+
+  getMonthStart(date) {
+    const d = new Date(date);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  },
+
+  getMonthEnd(date) {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  },
+
+  getYearStart(date) {
+    const d = new Date(date);
+    d.setMonth(0, 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  },
+
+  getYearEnd(date) {
+    const d = new Date(date);
+    d.setMonth(11, 31);
+    d.setHours(23, 59, 59, 999);
+    return d;
   },
 
   daysBetween(date1, date2) {
@@ -102,9 +160,21 @@ const Utils = {
     { name: 'indigo', value: '#6366F1' },
   ],
 
+  userRoles: [
+    { id: 'student', name: '学生', icon: '🎓', desc: '备考、学习新技能' },
+    { id: 'professional', name: '职场人', icon: '💼', desc: '提升工作效率、职业发展' },
+    { id: 'creator', name: '创作者', icon: '🎨', desc: '内容创作、项目管理' },
+    { id: 'fitness', name: '健身爱好者', icon: '💪', desc: '健康管理、运动计划' },
+    { id: 'other', name: '其他', icon: '✨', desc: '自定义目标' },
+  ],
+
   getGoalColor(colorName) {
     const color = this.goalColors.find(c => c.name === colorName);
     return color ? color.value : '#6366F1';
+  },
+
+  getGoalColorNames() {
+    return this.goalColors.map(c => c.name);
   },
 
   motivationQuotes: [

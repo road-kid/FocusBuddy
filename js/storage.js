@@ -45,13 +45,21 @@ const Storage = {
   getConfig() {
     return this.get(this.KEYS.CONFIG, {
       onboarded: false,
+      userRole: '',
       backendType: 'demo',
       apiUrl: '',
       apiKey: '',
       model: '',
+      focusDuration: 25,
+      breakDuration: 5,
+      longBreakDuration: 15,
+      longBreakInterval: 4,
       weekStartsOn: 1,
       theme: 'system',
       notifications: true,
+      soundEnabled: true,
+      autoStartBreak: false,
+      autoStartFocus: false,
     });
   },
 
@@ -92,6 +100,14 @@ const Storage = {
     this.saveNodes(nodes);
     const records = this.getRecords().filter(r => r.goalId !== goalId);
     this.saveRecords(records);
+  },
+
+  archiveGoal(goalId) {
+    return this.updateGoal(goalId, { archived: true, archivedAt: new Date().toISOString() });
+  },
+
+  unarchiveGoal(goalId) {
+    return this.updateGoal(goalId, { archived: false, archivedAt: null });
   },
 
   getNodes() {
@@ -159,6 +175,10 @@ const Storage = {
     return record;
   },
 
+  getRecordsByDateRange(startDate, endDate) {
+    return this.getRecords().filter(r => r.date >= startDate && r.date <= endDate);
+  },
+
   getTodayRecords() {
     const today = Utils.getTodayStr();
     return this.getRecords().filter(r => r.date === today);
@@ -189,5 +209,39 @@ const Storage = {
 
   clearMessages() {
     this.saveMessages([]);
+  },
+
+  exportData() {
+    const data = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      config: this.getConfig(),
+      goals: this.getGoals(),
+      nodes: this.getNodes(),
+      records: this.getRecords(),
+      messages: this.getMessages(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `focusbuddy-backup-${Utils.getTodayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importData(jsonData) {
+    try {
+      const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+      if (data.config) this.saveConfig(data.config);
+      if (data.goals) this.saveGoals(data.goals);
+      if (data.nodes) this.saveNodes(data.nodes);
+      if (data.records) this.saveRecords(data.records);
+      if (data.messages) this.saveMessages(data.messages);
+      return true;
+    } catch (e) {
+      console.error('Import error:', e);
+      return false;
+    }
   },
 };
