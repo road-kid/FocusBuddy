@@ -107,37 +107,33 @@ const Settings = {
   /* ─── AI 配置 ─── */
 
   renderAiDetail(config) {
-    const isDemo = config.backendType === 'demo';
     return `
-      <div class="mb-4">
-        <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">后端模式</span>
-        <div class="segment-control" id="ai-backend-type">
-          <div class="segment-control-item ${isDemo ? 'active' : ''}" data-backend="demo">演示模式</div>
-          <div class="segment-control-item ${!isDemo ? 'active' : ''}" data-backend="custom">自定义 API</div>
-        </div>
+      <div style="background: var(--color-bg-card); border-radius: var(--radius-md); padding: var(--space-md); font-size: var(--text-xs); color: var(--color-text-tertiary); line-height: var(--line-height-relaxed); margin-bottom: var(--space-md);">
+        <strong style="color: var(--color-text-secondary);">支持的服务：</strong><br>
+        OpenAI: <code>https://api.openai.com/v1</code><br>
+        OpenRouter: <code>https://openrouter.ai/api/v1</code><br>
+        Ollama: <code>http://localhost:11434/v1</code>
       </div>
 
-      <div id="ai-custom-fields" style="display: ${isDemo ? 'none' : 'block'};">
-        <div class="mb-4">
-          <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">API 地址</span>
-          <input type="text" class="input-field" id="ai-api-url" value="${Utils.escapeHtml(config.apiUrl || '')}" placeholder="https://api.openai.com/v1">
-        </div>
-        <div class="mb-4">
-          <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">API Key</span>
-          <input type="password" class="input-field" id="ai-api-key" value="${Utils.escapeHtml(config.apiKey || '')}" placeholder="sk-...">
-        </div>
-        <div class="mb-4">
-          <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">模型</span>
-          <input type="text" class="input-field" id="ai-model" value="${Utils.escapeHtml(config.model || '')}" placeholder="gpt-4o">
-        </div>
-        <div class="mb-4">
-          <button class="btn-secondary" id="btn-test-connection" style="width: 100%;">测试连接</button>
-          <div id="ai-test-result" style="margin-top: var(--space-sm); font-size: var(--text-sm); display: none;"></div>
-        </div>
+      <div class="mb-4">
+        <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">API 地址</span>
+        <input type="text" class="input-field" id="ai-api-url" value="${Utils.escapeHtml(config.apiUrl || '')}" placeholder="https://api.openai.com/v1" style="width: 100%; box-sizing: border-box;">
+      </div>
+      <div class="mb-4">
+        <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">API Key</span>
+        <input type="password" class="input-field" id="ai-api-key" value="${Utils.escapeHtml(config.apiKey || '')}" placeholder="sk-..." style="width: 100%; box-sizing: border-box;">
+      </div>
+      <div class="mb-4">
+        <span style="font-size: var(--text-sm); color: var(--color-text-secondary); display: block; margin-bottom: var(--space-sm);">模型名称</span>
+        <input type="text" class="input-field" id="ai-model" value="${Utils.escapeHtml(config.model || '')}" placeholder="gpt-4o / openai/gpt-4o / llama3" style="width: 100%; box-sizing: border-box;">
+      </div>
+      <div class="mb-4">
+        <button class="btn-secondary" id="btn-test-connection" style="width: 100%;">测试连接</button>
+        <div id="ai-test-result" style="margin-top: var(--space-sm); font-size: var(--text-sm); display: none;"></div>
       </div>
 
       <div style="font-size: var(--text-xs); color: var(--color-text-tertiary); margin-top: var(--space-sm);">
-        ${isDemo ? '演示模式使用内置示例数据，无需配置 API。' : '配置兼容 OpenAI API 格式的后端服务。'}
+        为空则不使用 AI 功能，应用将作为普通目标管理工具使用。
       </div>
     `;
   },
@@ -289,18 +285,6 @@ const Settings = {
 
     // ── AI ──
 
-    // Backend type segment control
-    const backendSegments = document.querySelectorAll('#ai-backend-type .segment-control-item');
-    backendSegments.forEach(seg => {
-      seg.addEventListener('click', () => {
-        const backend = seg.dataset.backend;
-        const cfg = Storage.getConfig();
-        cfg.backendType = backend;
-        Storage.saveConfig(cfg);
-        this.render();
-      });
-    });
-
     // AI custom input fields
     ['ai-api-url', 'ai-api-key', 'ai-model'].forEach(id => {
       const el = document.getElementById(id);
@@ -329,7 +313,7 @@ const Settings = {
 
         if (result.success) {
           resultEl.style.color = 'var(--state-success)';
-          resultEl.textContent = '连接成功！' + (result.models.length > 0 ? ` 可用模型: ${result.models.join(', ')}` : '');
+          resultEl.textContent = result.message || '连接成功！';
         } else {
           resultEl.style.color = 'var(--state-error)';
           resultEl.textContent = '连接失败: ' + (result.error || '未知错误');

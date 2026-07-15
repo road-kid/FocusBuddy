@@ -1,433 +1,390 @@
 const Onboard = {
-  currentStep: 0,
-  totalSteps: 4,
-  selectedRole: null,
-  planState: 'input',
+  step: 1,
+  config: null,
   generatedPlan: null,
-  progressMessages: [],
 
   init() {
-    this.currentStep = 0;
-    this.selectedRole = null;
-    this.planState = 'input';
+    this.step = 1;
+    this.config = Storage.getConfig();
     this.generatedPlan = null;
-    this.progressMessages = [];
     this.render();
   },
 
   render() {
     const app = document.getElementById('app');
-
-    let content = '';
-    switch (this.currentStep) {
-      case 0: content = this.renderWelcome(); break;
-      case 1: content = this.renderRoleSelection(); break;
-      case 2: content = this.renderAIConfig(); break;
-      case 3: content = this.renderGoalInput(); break;
-    }
-
     app.innerHTML = `
-      <div class="page-container flex flex-col" style="min-height: 100vh; min-height: 100dvh;">
+      <div class="page-container" style="display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh;">
         <div style="height: var(--status-bar-height);"></div>
-        ${this.currentStep > 0 ? this.renderBackButton() : ''}
-        ${this.renderStepBar()}
-        ${content}
+
+        <header style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-md) var(--space-lg); height: var(--nav-height);">
+          ${this.step > 1 ? `
+            <button class="icon-btn" id="btn-onboard-back" aria-label="上一步">
+              <i data-lucide="chevron-left" style="width: 24px; height: 24px;"></i>
+            </button>
+          ` : `<div style="width: 40px; height: 40px;"></div>`}
+          <span style="font-size: var(--text-sm); color: var(--color-text-tertiary);">${this.step}/4</span>
+          <div style="width: 40px; height: 40px;"></div>
+        </header>
+
+        <div style="display: flex; gap: 6px; padding: 0 var(--space-lg); margin-bottom: var(--space-lg);">
+          ${[1, 2, 3, 4].map(i => `
+            <div style="flex: 1; height: 3px; border-radius: 2px; background: ${i <= this.step ? 'var(--color-primary)' : 'var(--color-border)'}; transition: background 0.3s;"></div>
+          `).join('')}
+        </div>
+
+        <div class="page-content" style="flex: 1; padding: 0 var(--space-lg);">
+          ${this.step === 1 ? this.renderStep1() : ''}
+          ${this.step === 2 ? this.renderStep2() : ''}
+          ${this.step === 3 ? this.renderStep3() : ''}
+          ${this.step === 4 ? this.renderStep4() : ''}
+        </div>
       </div>
     `;
 
     this.bindEvents();
+    lucide.createIcons();
   },
 
-  renderBackButton() {
-    return `
-      <div style="padding: 0 var(--space-lg); margin-bottom: -8px;">
-        <button id="btn-onboard-back" class="btn-icon" aria-label="返回上一步" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 20px;">
-          ←
-        </button>
-      </div>
-    `;
-  },
+  /* ========== Step 1: Welcome ========== */
 
-  renderStepBar() {
-    const steps = Array(this.totalSteps).fill(0);
+  renderStep1() {
     return `
-      <div class="onboarding-step-bar">
-        ${steps.map((_, i) => `
-          <div class="onboarding-step-dot ${i <= this.currentStep ? 'active' : ''}"></div>
-        `).join('')}
-      </div>
-    `;
-  },
-
-  renderWelcome() {
-    return `
-      <div class="flex-1 flex flex-col items-center justify-center" style="padding: 0 var(--space-lg);">
-        <div style="width: 80px; height: 80px; border-radius: 20px; background: linear-gradient(135deg, #6366F1, #8B5CF6); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-xl); box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);">
-          <span style="font-size: 40px;">🎯</span>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; gap: var(--space-xl);">
+        <div style="width: 80px; height: 80px; border-radius: 24px; background: var(--color-primary-gradient); display: flex; align-items: center; justify-content: center; font-size: 40px;">🧠</div>
+        <div>
+          <h1 style="font-size: var(--text-3xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-sm);">FocusBuddy</h1>
+          <p style="font-size: var(--text-base); color: var(--color-text-secondary); margin: 0; line-height: var(--line-height-relaxed);">AI 替你做规划，你只管去执行</p>
         </div>
-        <h1 class="text-center" style="font-size: 28px; font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-sm);">
-          FocusBuddy
-        </h1>
-        <p class="text-center" style="font-size: var(--text-base); font-weight: var(--font-weight-regular); color: var(--color-text-secondary); margin: 0 0 var(--space-3xl); line-height: var(--line-height-relaxed);">
-          AI 替你做规划，你只管去执行
-        </p>
-      </div>
-      <div style="padding: 0 var(--space-lg) var(--space-3xl);">
-        <button class="btn-primary" id="btn-onboard-next">
-          开始使用
-        </button>
+        <p style="font-size: var(--text-sm); color: var(--color-text-tertiary); margin: 0;">智能目标拆解 · 番茄专注计时 · 数据驱动成长</p>
+        <button class="btn-primary" id="btn-step1-next" style="width: 100%; max-width: 280px; margin-top: var(--space-xl);">开始使用</button>
       </div>
     `;
   },
 
-  renderRoleSelection() {
-    const roles = Utils.userRoles;
+  /* ========== Step 2: Role ========== */
+
+  renderStep2() {
+    const selectedRole = this.config.userRole || '';
     return `
-      <div class="flex-1 flex flex-col" style="padding: 0 var(--space-lg);">
-        <div style="margin-bottom: var(--space-xl);">
-          <h2 class="text-center" style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-xs);">
-            选择你的身份
-          </h2>
-          <p class="text-center" style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">
-            以便 AI 为你定制更合适的计划
-          </p>
+      <div style="display: flex; flex-direction: column; flex: 1; gap: var(--space-xl);">
+        <div>
+          <h2 style="font-size: var(--text-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-sm);">选择你的身份</h2>
+          <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">这有助于 AI 为你定制更精准的计划</p>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
-          ${roles.map(role => `
-            <div class="onboard-role-card" data-role-id="${role.id}" style="
-              background: #1C1C1E;
-              border: 2px solid ${this.selectedRole === role.id ? 'var(--color-primary)' : '#2C2C2E'};
-              border-radius: 16px;
-              padding: var(--space-lg) var(--space-md);
-              cursor: pointer;
-              transition: border-color 0.2s;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              text-align: center;
-              gap: var(--space-sm);
-            ">
-              <span style="font-size: 32px;">${role.icon}</span>
-              <span style="font-size: var(--text-base); font-weight: var(--font-weight-semibold); color: var(--color-text-primary);">${role.name}</span>
-              <span style="font-size: var(--text-xs); color: var(--color-text-tertiary); line-height: 1.3;">${role.desc}</span>
+          ${Utils.userRoles.map(role => `
+            <div class="role-card ${selectedRole === role.id ? 'selected' : ''}" data-role="${role.id}">
+              <div class="role-card-icon">${role.icon}</div>
+              <div class="role-card-name">${role.name}</div>
+              <div class="role-card-desc">${role.desc}</div>
             </div>
           `).join('')}
         </div>
-      </div>
-      <div style="padding: var(--space-lg) var(--space-lg) var(--space-3xl);">
-        <button class="btn-primary" id="btn-onboard-next" ${this.selectedRole ? '' : 'disabled style="opacity: 0.4; cursor: not-allowed;"'}>
-          继续
-        </button>
+        <button class="btn-primary" id="btn-step2-next" ${selectedRole ? '' : 'disabled'} style="width: 100%; margin-top: auto;">继续</button>
       </div>
     `;
   },
 
-  renderAIConfig() {
-    const config = Storage.getConfig();
+  /* ========== Step 3: AI Config ========== */
+
+  renderStep3() {
+    const cfg = this.config;
     return `
-      <div class="flex-1 flex flex-col" style="padding: 0 var(--space-lg); overflow-y: auto;">
-        <div style="margin-bottom: var(--space-xl);">
-          <h2 class="text-center" style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-xs);">
-            配置 AI 服务
-          </h2>
-          <p class="text-center" style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">
-            连接你的 AI 服务，或使用演示模式快速体验
+      <div style="display: flex; flex-direction: column; flex: 1; gap: var(--space-lg);">
+        <div>
+          <h2 style="font-size: var(--text-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-sm);">配置 AI 服务</h2>
+          <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">支持 OpenAI、OpenRouter、Ollama 等兼容 API</p>
+        </div>
+
+        <div style="background: var(--color-bg-card); border-radius: var(--radius-lg); padding: var(--space-md); font-size: var(--text-xs); color: var(--color-text-tertiary); line-height: var(--line-height-relaxed); margin-bottom: 0;">
+          <strong style="color: var(--color-text-secondary);">常用地址：</strong><br>
+          OpenAI: <code>https://api.openai.com/v1</code><br>
+          OpenRouter: <code>https://openrouter.ai/api/v1</code><br>
+          Ollama: <code>http://localhost:11434/v1</code>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">API 地址</label>
+          <input type="text" class="input-field" id="onboard-api-url" value="${Utils.escapeHtml(cfg.apiUrl || '')}" placeholder="https://api.openai.com/v1" style="width: 100%; box-sizing: border-box;">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">API Key</label>
+          <input type="password" class="input-field" id="onboard-api-key" value="${Utils.escapeHtml(cfg.apiKey || '')}" placeholder="sk-..." style="width: 100%; box-sizing: border-box;">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">模型名称</label>
+          <input type="text" class="input-field" id="onboard-model" value="${Utils.escapeHtml(cfg.model || '')}" placeholder="gpt-4o / openai/gpt-4o / llama3" style="width: 100%; box-sizing: border-box;">
+        </div>
+
+        <button class="btn-secondary" id="btn-onboard-test" style="width: 100%;">测试连接</button>
+        <div id="onboard-test-result" style="font-size: var(--text-sm); text-align: center; display: none;"></div>
+
+        <div style="display: flex; gap: var(--space-md); margin-top: auto;">
+          <button class="btn-secondary" id="btn-onboard-skip" style="flex: 1;">跳过，手动创建</button>
+          <button class="btn-primary" id="btn-step3-next" style="flex: 1;">保存并继续</button>
+        </div>
+      </div>
+    `;
+  },
+
+  /* ========== Step 4: Goal Input ========== */
+
+  renderStep4() {
+    const hasAI = !!(this.config.apiUrl && this.config.apiKey && this.config.model);
+    return `
+      <div style="display: flex; flex-direction: column; flex: 1; gap: var(--space-lg);">
+        <div>
+          <h2 style="font-size: var(--text-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-sm);">设定你的第一个目标</h2>
+          <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">
+            ${hasAI ? 'AI 将为你生成详细的分层任务计划' : '你可以手动创建目标，之后在详情页添加子任务'}
           </p>
         </div>
 
-        <div style="margin-bottom: var(--space-lg);">
-          <label style="display: block; font-size: var(--text-sm); font-weight: var(--font-weight-medium); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">API 地址</label>
-          <input id="input-api-url" type="text" placeholder="https://api.openai.com/v1" value="${Utils.escapeHtml(config.apiUrl || '')}" style="
-            width: 100%; padding: 12px var(--space-md); border-radius: 12px; border: 1px solid #2C2C2E; background: #1C1C1E; color: var(--color-text-primary); font-size: var(--text-base); outline: none; box-sizing: border-box;
-          ">
-        </div>
-
-        <div style="margin-bottom: var(--space-lg);">
-          <label style="display: block; font-size: var(--text-sm); font-weight: var(--font-weight-medium); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">API Key</label>
-          <input id="input-api-key" type="password" placeholder="sk-..." value="${Utils.escapeHtml(config.apiKey || '')}" style="
-            width: 100%; padding: 12px var(--space-md); border-radius: 12px; border: 1px solid #2C2C2E; background: #1C1C1E; color: var(--color-text-primary); font-size: var(--text-base); outline: none; box-sizing: border-box;
-          ">
-        </div>
-
-        <div style="margin-bottom: var(--space-lg);">
-          <label style="display: block; font-size: var(--text-sm); font-weight: var(--font-weight-medium); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">模型</label>
-          <input id="input-model" type="text" placeholder="gpt-4o" value="${Utils.escapeHtml(config.model || '')}" style="
-            width: 100%; padding: 12px var(--space-md); border-radius: 12px; border: 1px solid #2C2C2E; background: #1C1C1E; color: var(--color-text-primary); font-size: var(--text-base); outline: none; box-sizing: border-box;
-          ">
-        </div>
-      </div>
-
-      <div style="padding: var(--space-lg) var(--space-lg) var(--space-3xl); display: flex; flex-direction: column; gap: var(--space-md);">
-        <button class="btn-primary" id="btn-onboard-save-config">
-          保存并继续
-        </button>
-        <button id="btn-onboard-demo" style="
-          width: 100%; padding: 14px var(--space-lg); border-radius: 14px; border: 1px solid #2C2C2E; background: transparent; color: var(--color-text-secondary); font-size: var(--text-base); font-weight: var(--font-weight-medium); cursor: pointer;
-        ">
-          使用演示模式
-        </button>
-      </div>
-    `;
-  },
-
-  renderGoalInput() {
-    const stateContent = this.renderGoalStateContent();
-
-    return `
-      <div class="flex-1 flex flex-col" style="padding: 0 var(--space-lg); overflow-y: auto;">
-        <div style="margin-bottom: var(--space-xl);">
-          <h2 class="text-center" style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-xs);">
-            设定你的第一个目标
-          </h2>
-          <p class="text-center" style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0;">
-            告诉 AI 你想要达成什么，它会帮你制定详细计划
-          </p>
-        </div>
-
-        ${stateContent}
-      </div>
-    `;
-  },
-
-  renderGoalStateContent() {
-    if (this.planState === 'input') {
-      return this.renderGoalInputForm();
-    }
-    if (this.planState === 'generating') {
-      return this.renderGoalGenerating();
-    }
-    if (this.planState === 'done') {
-      return this.renderGoalPlanResult();
-    }
-    return '';
-  },
-
-  renderGoalInputForm() {
-    return `
-      <div>
-        <textarea id="input-goal" placeholder="例如：30天内学会 Python 基础、每周健身3次、每天阅读30分钟……" style="
-          width: 100%; min-height: 100px; padding: 12px var(--space-md); border-radius: 12px; border: 1px solid #2C2C2E; background: #1C1C1E; color: var(--color-text-primary); font-size: var(--text-base); outline: none; resize: vertical; box-sizing: border-box; line-height: var(--line-height-relaxed); font-family: inherit;
-        ">${Utils.escapeHtml(this.goalInput || '')}</textarea>
-      </div>
-      <div style="padding: var(--space-lg) 0 var(--space-3xl);">
-        <button class="btn-primary" id="btn-onboard-generate">
-          生成 AI 计划
-        </button>
-      </div>
-    `;
-  },
-
-  renderGoalGenerating() {
-    return `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-2xl) 0;">
-        <div class="onboard-spinner" style="
-          width: 48px; height: 48px; border: 4px solid #2C2C2E; border-top-color: var(--color-primary); border-radius: 50%; animation: onboard-spin 0.8s linear infinite; margin-bottom: var(--space-xl);
-        "></div>
-        <p style="font-size: var(--text-base); color: var(--color-text-primary); margin: 0 0 var(--space-md); text-align: center;">
-          AI 正在为你制定计划...
-        </p>
-        <div id="onboard-progress-messages" style="width: 100%;">
-          ${this.progressMessages.map(msg => `
-            <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0 0 var(--space-xs); text-align: center; animation: onboard-fadein 0.3s ease;">
-              ${Utils.escapeHtml(msg)}
-            </p>
-          `).join('')}
-        </div>
-      </div>
-      <style>
-        @keyframes onboard-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes onboard-fadein {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      </style>
-    `;
-  },
-
-  renderGoalPlanResult() {
-    const plan = this.generatedPlan;
-    if (!plan) return '';
-
-    return `
-      <div style="flex: 1; display: flex; flex-direction: column;">
-        <div style="background: #1C1C1E; border-radius: 16px; padding: var(--space-lg); margin-bottom: var(--space-lg);">
-          <h3 style="font-size: var(--text-lg); font-weight: var(--font-weight-bold); color: var(--color-text-primary); margin: 0 0 var(--space-xs);">
-            ${Utils.escapeHtml(plan.goal.title)}
-          </h3>
-          ${plan.goal.description ? `
-            <p style="font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0 0 var(--space-md); line-height: var(--line-height-relaxed);">
-              ${Utils.escapeHtml(plan.goal.description)}
-            </p>
-          ` : ''}
-          <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 80px; background: #2C2C2E; border-radius: 12px; padding: var(--space-md); text-align: center;">
-              <div style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-primary);">${plan.summary.totalTasks}</div>
-              <div style="font-size: var(--text-xs); color: var(--color-text-tertiary); margin-top: 2px;">总任务数</div>
-            </div>
-            <div style="flex: 1; min-width: 80px; background: #2C2C2E; border-radius: 12px; padding: var(--space-md); text-align: center;">
-              <div style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-primary);">${plan.summary.duration}</div>
-              <div style="font-size: var(--text-xs); color: var(--color-text-tertiary); margin-top: 2px;">计划天数</div>
-            </div>
-            <div style="flex: 1; min-width: 80px; background: #2C2C2E; border-radius: 12px; padding: var(--space-md); text-align: center;">
-              <div style="font-size: var(--text-xl); font-weight: var(--font-weight-bold); color: var(--color-primary);">${plan.summary.dailyTasks}</div>
-              <div style="font-size: var(--text-xs); color: var(--color-text-tertiary); margin-top: 2px;">每日任务</div>
+        ${hasAI ? `
+          <div>
+            <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">描述你的目标</label>
+            <textarea class="input-field" id="onboard-goal" placeholder="描述你的目标，越详细越好。如：3个月学会日语N2，每天能投入1小时..." style="width: 100%; min-height: 100px; resize: vertical; box-sizing: border-box; font-family: inherit;"></textarea>
+          </div>
+          <button class="btn-primary" id="btn-onboard-generate" style="width: 100%;">生成 AI 计划</button>
+          <div id="onboard-generate-progress" style="font-size: var(--text-sm); color: var(--color-text-secondary); text-align: center; display: none;"></div>
+          <div id="onboard-plan-preview" style="display: none;"></div>
+        ` : `
+          <div>
+            <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">目标名称</label>
+            <input type="text" class="input-field" id="onboard-manual-title" placeholder="例如：每天健身30分钟" style="width: 100%; box-sizing: border-box;">
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">描述（可选）</label>
+            <textarea class="input-field" id="onboard-manual-desc" placeholder="简要描述..." style="width: 100%; min-height: 60px; resize: vertical; box-sizing: border-box; font-family: inherit;"></textarea>
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">分类</label>
+            <div class="segment-control" id="onboard-category">
+              ${['学习', '健康', '工作', '生活', '其他'].map(c => `
+                <div class="segment-control-item ${c === '学习' ? 'active' : ''}" data-cat="${c}">${c}</div>
+              `).join('')}
             </div>
           </div>
-        </div>
-        <div style="padding-bottom: var(--space-3xl);">
-          <button class="btn-primary" id="btn-onboard-confirm">
-            确认并开始
-          </button>
-        </div>
+          <div>
+            <label style="display: block; font-size: var(--text-sm); color: var(--color-text-secondary); margin-bottom: var(--space-xs);">颜色</label>
+            <div class="color-picker" id="onboard-color">
+              ${Utils.goalColors.map((c, i) => `
+                <div class="color-picker-item ${i === 7 ? 'selected' : ''}" data-color="${c.name}" style="background: ${c.value};"></div>
+              `).join('')}
+            </div>
+          </div>
+          <button class="btn-primary" id="btn-onboard-manual-create" style="width: 100%;">创建目标</button>
+        `}
       </div>
     `;
   },
 
+  /* ========== Events ========== */
+
   bindEvents() {
-    const btnNext = document.getElementById('btn-onboard-next');
-    if (btnNext) {
-      btnNext.addEventListener('click', () => this.nextStep());
-    }
+    // Step 1
+    const btn1 = document.getElementById('btn-step1-next');
+    if (btn1) btn1.addEventListener('click', () => { this.step = 2; this.render(); });
 
+    // Back button
     const btnBack = document.getElementById('btn-onboard-back');
-    if (btnBack) {
-      btnBack.addEventListener('click', () => this.prevStep());
-    }
+    if (btnBack) btnBack.addEventListener('click', () => { this.step--; this.render(); });
 
-    const roleCards = document.querySelectorAll('.onboard-role-card');
-    if (roleCards.length > 0) {
-      roleCards.forEach(card => {
-        card.addEventListener('click', () => {
-          const roleId = card.getAttribute('data-role-id');
-          this.handleRoleSelect(roleId);
-        });
+    // Step 2: Role
+    document.querySelectorAll('.role-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        this.config.userRole = card.dataset.role;
+        const btnNext = document.getElementById('btn-step2-next');
+        if (btnNext) btnNext.disabled = false;
       });
-    }
+    });
+    const btn2 = document.getElementById('btn-step2-next');
+    if (btn2) btn2.addEventListener('click', () => { this.step = 3; this.render(); });
 
-    const btnSaveConfig = document.getElementById('btn-onboard-save-config');
-    if (btnSaveConfig) {
-      btnSaveConfig.addEventListener('click', () => this.handleSaveConfig());
-    }
-
-    const btnDemo = document.getElementById('btn-onboard-demo');
-    if (btnDemo) {
-      btnDemo.addEventListener('click', () => this.handleDemoMode());
-    }
-
-    const btnGenerate = document.getElementById('btn-onboard-generate');
-    if (btnGenerate) {
-      btnGenerate.addEventListener('click', () => this.handleGeneratePlan());
-    }
-
-    const btnConfirm = document.getElementById('btn-onboard-confirm');
-    if (btnConfirm) {
-      btnConfirm.addEventListener('click', () => this.handleConfirmPlan());
-    }
-  },
-
-  nextStep() {
-    if (this.currentStep < this.totalSteps - 1) {
-      this.currentStep++;
+    // Step 3: AI Config
+    const btnSkip = document.getElementById('btn-onboard-skip');
+    if (btnSkip) btnSkip.addEventListener('click', () => {
+      this.config.apiUrl = '';
+      this.config.apiKey = '';
+      this.config.model = '';
+      this.step = 4;
       this.render();
-    } else {
-      this.completeOnboarding();
-    }
-  },
+    });
 
-  prevStep() {
-    if (this.currentStep > 0) {
-      if (this.currentStep === 3) {
-        this.planState = 'input';
-        this.generatedPlan = null;
-        this.progressMessages = [];
+    const btnTest = document.getElementById('btn-onboard-test');
+    if (btnTest) btnTest.addEventListener('click', async () => {
+      this._saveConfigFromInputs();
+      const resultEl = document.getElementById('onboard-test-result');
+      btnTest.disabled = true;
+      btnTest.textContent = '正在测试...';
+      resultEl.style.display = 'block';
+      resultEl.style.color = 'var(--color-text-secondary)';
+      resultEl.textContent = '正在连接...';
+
+      const result = await AI.testConnection(this.config);
+      if (result.success) {
+        resultEl.style.color = 'var(--state-success)';
+        resultEl.textContent = '连接成功！模型可用';
+      } else {
+        resultEl.style.color = 'var(--state-error)';
+        resultEl.textContent = result.error;
       }
-      this.currentStep--;
+      btnTest.disabled = false;
+      btnTest.textContent = '测试连接';
+    });
+
+    const btn3 = document.getElementById('btn-step3-next');
+    if (btn3) btn3.addEventListener('click', () => {
+      this._saveConfigFromInputs();
+      this.step = 4;
       this.render();
-    }
+    });
+
+    // Step 4
+    const btnGenerate = document.getElementById('btn-onboard-generate');
+    if (btnGenerate) btnGenerate.addEventListener('click', () => this.generatePlan());
+
+    const btnManualCreate = document.getElementById('btn-onboard-manual-create');
+    if (btnManualCreate) btnManualCreate.addEventListener('click', () => this.createManualGoal());
+
+    // Manual category
+    document.querySelectorAll('#onboard-category .segment-control-item').forEach(seg => {
+      seg.addEventListener('click', () => {
+        document.querySelectorAll('#onboard-category .segment-control-item').forEach(s => s.classList.remove('active'));
+        seg.classList.add('active');
+      });
+    });
+
+    // Manual color
+    document.querySelectorAll('#onboard-color .color-picker-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('#onboard-color .color-picker-item').forEach(c => c.classList.remove('selected'));
+        item.classList.add('selected');
+      });
+    });
   },
 
-  handleRoleSelect(roleId) {
-    this.selectedRole = roleId;
-    this.render();
+  _saveConfigFromInputs() {
+    const url = document.getElementById('onboard-api-url')?.value.trim() || '';
+    const key = document.getElementById('onboard-api-key')?.value.trim() || '';
+    const model = document.getElementById('onboard-model')?.value.trim() || '';
+    this.config.apiUrl = url;
+    this.config.apiKey = key;
+    this.config.model = model;
   },
 
-  handleSaveConfig() {
-    const apiUrl = document.getElementById('input-api-url').value.trim();
-    const apiKey = document.getElementById('input-api-key').value.trim();
-    const model = document.getElementById('input-model').value.trim();
+  /* ========== AI Generation ========== */
 
-    const config = Storage.getConfig();
-    config.backendType = 'api';
-    config.apiUrl = apiUrl;
-    config.apiKey = apiKey;
-    config.model = model;
-    Storage.saveConfig(config);
+  async generatePlan() {
+    const goalText = document.getElementById('onboard-goal')?.value.trim();
+    if (!goalText) { alert('请输入目标描述'); return; }
 
-    this.nextStep();
-  },
+    this._saveConfigFromInputs();
 
-  handleDemoMode() {
-    const config = Storage.getConfig();
-    config.backendType = 'demo';
-    config.apiUrl = '';
-    config.apiKey = '';
-    config.model = '';
-    Storage.saveConfig(config);
-
-    this.nextStep();
-  },
-
-  async handleGeneratePlan() {
-    const goalInput = document.getElementById('input-goal');
-    if (!goalInput || !goalInput.value.trim()) {
-      goalInput && goalInput.focus();
-      return;
-    }
-
-    this.goalInput = goalInput.value.trim();
-    this.planState = 'generating';
-    this.progressMessages = [];
-    this.render();
+    const btn = document.getElementById('btn-onboard-generate');
+    const progress = document.getElementById('onboard-generate-progress');
+    btn.disabled = true;
+    btn.textContent = '生成中...';
+    progress.style.display = 'block';
 
     try {
-      const role = Utils.userRoles.find(r => r.id === this.selectedRole);
-      const userLevel = role ? role.name : '通用';
-
-      const plan = await AI.generateGoalPlan(this.goalInput, userLevel, 90, (message) => {
-        this.progressMessages.push(message);
-        this.render();
+      this.generatedPlan = await AI.generateGoalPlan(goalText, null, null, (msg) => {
+        progress.textContent = msg;
       });
 
-      this.generatedPlan = plan;
-      this.planState = 'done';
-      this.render();
+      progress.style.display = 'none';
+      this._showPlanPreview();
     } catch (error) {
-      this.planState = 'input';
-      this.render();
-      alert('AI 计划生成失败: ' + (error.message || '未知错误'));
+      progress.style.color = 'var(--state-error)';
+      progress.textContent = '生成失败: ' + (error.message || '未知错误');
+      btn.disabled = false;
+      btn.textContent = '重试生成';
     }
   },
 
-  handleConfirmPlan() {
-    if (!this.generatedPlan) return;
-
+  _showPlanPreview() {
     const plan = this.generatedPlan;
+    const preview = document.getElementById('onboard-plan-preview');
+    preview.style.display = 'block';
+    preview.innerHTML = `
+      <div style="background: var(--color-bg-card); border-radius: var(--radius-lg); padding: var(--space-lg); margin-top: var(--space-md);">
+        <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+          <div style="width: 10px; height: 10px; border-radius: 50%; background: ${Utils.getGoalColor(plan.goal.color)};"></div>
+          <strong style="color: var(--color-text-primary);">${Utils.escapeHtml(plan.goal.title)}</strong>
+        </div>
+        <div style="display: flex; gap: var(--space-lg); margin-bottom: var(--space-md); font-size: var(--text-sm);">
+          <div style="color: var(--color-text-secondary);">
+            <span style="color: var(--color-text-primary); font-weight: var(--font-weight-semibold);">${plan.summary.totalTasks}</span> 个任务
+          </div>
+          <div style="color: var(--color-text-secondary);">
+            <span style="color: var(--color-text-primary); font-weight: var(--font-weight-semibold);">${plan.summary.duration}</span> 天
+          </div>
+          <div style="color: var(--color-text-secondary);">
+            每日 <span style="color: var(--color-text-primary); font-weight: var(--font-weight-semibold);">${plan.summary.dailyTasks}</span> 个核心任务
+          </div>
+        </div>
+        <div style="font-size: var(--text-xs); color: var(--color-text-tertiary); margin-bottom: var(--space-md);">
+          任务结构: ${plan.nodes.filter(n => !n.parentId).map(n => Utils.escapeHtml(n.title)).join(' → ')}
+        </div>
+        <button class="btn-primary" id="btn-onboard-confirm" style="width: 100%;">确认并开始</button>
+      </div>
+    `;
 
-    Storage.addGoal(plan.goal);
-    plan.nodes.forEach(node => Storage.addNode(node));
+    document.getElementById('btn-onboard-confirm').addEventListener('click', () => this.completeOnboarding());
+  },
+
+  createManualGoal() {
+    const title = document.getElementById('onboard-manual-title')?.value.trim();
+    if (!title) { alert('请输入目标名称'); return; }
+
+    const desc = document.getElementById('onboard-manual-desc')?.value.trim() || '';
+    const category = document.querySelector('#onboard-category .segment-control-item.active')?.dataset?.cat || '学习';
+    const color = document.querySelector('#onboard-color .color-picker-item.selected')?.dataset?.color || 'indigo';
+    const endDate = Utils.addDays(new Date(), 90);
+
+    const goal = {
+      id: Utils.generateId(),
+      title,
+      description: desc,
+      color,
+      category,
+      startDate: new Date().toISOString(),
+      endDate: endDate.toISOString(),
+      createdAt: new Date().toISOString(),
+      archived: false,
+    };
+
+    Storage.addGoal(goal);
+
+    const nodeId = Utils.generateId();
+    Storage.addNode({
+      id: nodeId,
+      goalId: goal.id,
+      parentId: null,
+      title: '每日任务',
+      description: '完成每日目标',
+      depth: 1,
+      progressType: 'completion',
+      resetCycle: 'daily',
+      createdAt: new Date().toISOString(),
+    });
 
     this.completeOnboarding();
   },
 
   completeOnboarding() {
-    const config = Storage.getConfig();
-    config.onboarded = true;
-    if (this.selectedRole) {
-      config.userRole = this.selectedRole;
+    this.config.onboarded = true;
+    Storage.saveConfig(this.config);
+
+    if (this.generatedPlan) {
+      Storage.addGoal(this.generatedPlan.goal);
+      this.generatedPlan.nodes.forEach(node => Storage.addNode(node));
     }
-    Storage.saveConfig(config);
+
     App.navigate('goals');
   },
 };

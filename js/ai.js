@@ -1,193 +1,109 @@
 const AI = {
   async generateGoalPlan(userGoal, userLevel, duration, onProgress) {
     const config = Storage.getConfig();
-
-    if (config.backendType === 'demo') {
-      return this.demoGenerate(userGoal, userLevel, duration, onProgress);
+    if (!config.apiUrl || !config.apiKey || !config.model) {
+      throw new Error('AI_NOT_CONFIGURED');
     }
-
     return this.apiGenerate(userGoal, userLevel, duration, onProgress, config);
   },
 
-  async demoGenerate(userGoal, _userLevel, duration, onProgress) {
-    await this.delay(500);
-
-    if (onProgress) {
-      onProgress('正在分析你的目标...');
-    }
-    await this.delay(800);
-
-    if (onProgress) {
-      onProgress('正在制定多层任务计划...');
-    }
-    await this.delay(800);
-
-    if (onProgress) {
-      onProgress('正在优化任务层级结构...');
-    }
-    await this.delay(600);
-
-    const plan = DemoData.getDemoPlanResponse({
-      title: userGoal,
-      description: userGoal,
-      deadlineDays: duration || 90,
-    });
-
-    if (onProgress) {
-      onProgress('方案已生成！');
-    }
-
-    return plan;
-  },
-
   async apiGenerate(userGoal, userLevel, duration, onProgress, config) {
-    try {
-      const userRole = this._getUserRoleLabel(config.userRole);
-      const systemPrompt = Prompts.generateGoalSystemPrompt(userRole);
-      const userPrompt = Prompts.generateGoalUserPrompt(userGoal, userLevel, duration);
+    const userRole = this._getUserRoleLabel(config.userRole);
+    const systemPrompt = Prompts.generateGoalSystemPrompt(userRole);
+    const userPrompt = Prompts.generateGoalUserPrompt(userGoal, userLevel, duration);
 
-      if (onProgress) {
-        onProgress('正在连接 AI...');
-      }
+    if (onProgress) onProgress('正在连接 AI...');
 
-      const response = await fetch(`${config.apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          stream: false,
-          temperature: 0.7,
-        }),
-      });
+    const body = {
+      model: config.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+    };
 
-      if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status}`);
-      }
+    const data = await this._callChatAPI(config, body);
 
-      const data = await response.json();
-      const content = data.choices[0].message.content;
+    if (onProgress) onProgress('正在解析计划...');
 
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('无法解析 AI 返回的 JSON');
-      }
-
-      const planData = JSON.parse(jsonMatch[0]);
-      return this.convertToPlan(planData);
-    } catch (error) {
-      console.error('AI API Error:', error);
-      throw error;
+    const content = data.choices[0].message.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('AI 返回的内容无法解析，请重试或调整目标描述');
     }
+
+    const planData = JSON.parse(jsonMatch[0]);
+    return this.convertToPlan(planData);
   },
 
   async chat(userGoal, currentPlan, userMessage, conversationHistory, onProgress) {
     const config = Storage.getConfig();
-
-    if (config.backendType === 'demo') {
-      return this.demoChat(userGoal, currentPlan, userMessage, onProgress);
+    if (!config.apiUrl || !config.apiKey || !config.model) {
+      return { type: 'text', content: '请先在设置中配置 AI 服务。' };
     }
 
-    return this.apiChat(userGoal, currentPlan, userMessage, conversationHistory, onProgress, config);
-  },
+    const userRole = this._getUserRoleLabel(config.userRole);
+    const systemPrompt = Prompts.followUpSystemPrompt(userRole);
+    const planSummary = currentPlan ? this._summarizePlan(currentPlan) : '无当前计划';
+    const userPromptContent = Prompts.followUpUserPrompt(userGoal, planSummary, userMessage);
 
-  async demoChat(userGoal, currentPlan, userMessage, onProgress) {
-    await this.delay(600);
+    const messages = [{ role: 'system', content: systemPrompt }];
 
-    if (onProgress) {
-      onProgress('正在分析你的反馈...');
-    }
-    await this.delay(800);
-
-    const response = DemoData.getDemoChatResponse(userGoal, currentPlan, userMessage);
-
-    if (onProgress) {
-      onProgress('已生成回复');
-    }
-
-    return {
-      type: 'text',
-      content: response,
-    };
-  },
-
-  async apiChat(userGoal, currentPlan, userMessage, conversationHistory, onProgress, config) {
-    try {
-      const userRole = this._getUserRoleLabel(config.userRole);
-      const systemPrompt = Prompts.followUpSystemPrompt(userRole);
-
-      const planSummary = this._summarizePlan(currentPlan);
-      const userPrompt = Prompts.followUpUserPrompt(userGoal, planSummary, userMessage);
-
-      const messages = [
-        { role: 'system', content: systemPrompt },
-      ];
-
-      if (conversationHistory && conversationHistory.length > 0) {
-        conversationHistory.forEach(msg => {
-          messages.push({
-            role: msg.role === 'user' ? 'user' : 'assistant',
-            content: msg.content,
-          });
+    if (conversationHistory && conversationHistory.length > 0) {
+      conversationHistory.forEach(msg => {
+        messages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
         });
-      }
-
-      messages.push({ role: 'user', content: userPrompt });
-
-      if (onProgress) {
-        onProgress('正在连接 AI...');
-      }
-
-      const response = await fetch(`${config.apiUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          stream: false,
-          temperature: 0.7,
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const planData = JSON.parse(jsonMatch[0]);
-          const plan = this.convertToPlan(planData);
-          return {
-            type: 'plan',
-            content: '好的，我已经根据你的反馈调整了计划：',
-            plan,
-          };
-        } catch (e) {
-          // JSON 解析失败，作为纯文本回复
-        }
-      }
-
-      return {
-        type: 'text',
-        content: content.trim(),
-      };
-    } catch (error) {
-      console.error('AI Chat Error:', error);
-      throw error;
     }
+    messages.push({ role: 'user', content: userPromptContent });
+
+    if (onProgress) onProgress('正在连接 AI...');
+
+    const body = { model: config.model, messages, temperature: 0.7 };
+    const data = await this._callChatAPI(config, body);
+
+    const content = data.choices[0].message.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const planData = JSON.parse(jsonMatch[0]);
+        const plan = this.convertToPlan(planData);
+        return { type: 'plan', content: '好的，我已经根据你的反馈调整了计划：', plan };
+      } catch (e) { /* fall through */ }
+    }
+
+    return { type: 'text', content: content.trim() };
+  },
+
+  async _callChatAPI(config, body) {
+    let apiUrl = config.apiUrl.replace(/\/+$/, '');
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`,
+    };
+
+    const response = await fetch(`${apiUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      let errorMsg = `API 请求失败 (${response.status})`;
+      try {
+        const errData = await response.json();
+        if (errData.error) {
+          errorMsg = errData.error.message || JSON.stringify(errData.error);
+        }
+      } catch (e) {}
+      throw new Error(errorMsg);
+    }
+
+    return response.json();
   },
 
   convertToPlan(planData) {
@@ -209,12 +125,13 @@ const AI = {
 
     const nodes = [];
     const convertNodes = (items, parentId, depth) => {
+      if (!items || !Array.isArray(items)) return;
       items.forEach(item => {
         const nodeId = Utils.generateId();
         nodes.push({
           id: nodeId,
           goalId,
-          parentId,
+          parentId: parentId || null,
           title: item.title,
           description: item.description || '',
           depth: depth,
@@ -234,9 +151,7 @@ const AI = {
     };
     convertNodes(planData.nodes || [], null, 1);
 
-    const leafNodes = nodes.filter(n => {
-      return !nodes.some(n2 => n2.parentId === n.id);
-    });
+    const leafNodes = nodes.filter(n => !nodes.some(n2 => n2.parentId === n.id));
 
     return {
       goal,
@@ -260,44 +175,56 @@ const AI = {
     parts.push(`目标：${currentPlan.goal.title}`);
     parts.push(`总任务数：${currentPlan.summary.totalTasks} 个叶子节点`);
     parts.push(`周期：${currentPlan.summary.duration} 天`);
-    parts.push(`每日任务：约 ${currentPlan.summary.dailyTasks} 个`);
-
     const topNodes = currentPlan.nodes.filter(n => !n.parentId);
     if (topNodes.length > 0) {
-      const names = topNodes.map(n => n.title).join('、');
-      parts.push(`一级任务：${names}`);
+      parts.push(`一级任务：${topNodes.map(n => n.title).join('、')}`);
     }
-
     return parts.join('；');
   },
 
   async testConnection(config) {
+    const apiUrl = (config.apiUrl || '').replace(/\/+$/, '');
+    const apiKey = config.apiKey || '';
+    const model = config.model || '';
+
+    if (!apiUrl) {
+      return { success: false, error: 'API 地址不能为空' };
+    }
+    if (!apiKey) {
+      return { success: false, error: 'API Key 不能为空' };
+    }
+    if (!model) {
+      return { success: false, error: '模型名称不能为空' };
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    };
+
     try {
-      const response = await fetch(`${config.apiUrl}/models`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
+      let response = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 5,
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error(`连接失败: ${response.status}`);
+      if (response.ok) {
+        const data = await response.json();
+        return { success: true, message: '连接成功！模型可用', model: data.model || model };
       }
 
-      const data = await response.json();
-      return {
-        success: true,
-        models: data.data?.map(m => m.id) || [],
-      };
+      const errorText = await response.text();
+      return { success: false, error: `请求失败 (${response.status}): ${errorText.slice(0, 200)}` };
     } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        return { success: false, error: '无法连接到服务器，请检查 API 地址是否正确' };
+      }
+      return { success: false, error: error.message || '未知错误' };
     }
-  },
-
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   },
 };
