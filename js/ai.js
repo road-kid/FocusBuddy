@@ -1,5 +1,4 @@
 const AI = {
-  // Stage definitions for progress reporting
   STAGES: [
     { id: 1, label: '解析目标特征', desc: '分析目标类型、周期与难度' },
     { id: 2, label: '规划任务结构', desc: '构建阶段性任务框架' },
@@ -20,9 +19,8 @@ const AI = {
     const systemPrompt = Prompts.generateGoalSystemPrompt(userRole);
     const userPrompt = Prompts.generateGoalUserPrompt(userGoal, userLevel, duration);
 
-    // Report stage 1
     this._reportStage(onProgress, 1);
-    await this._delay(300);
+    await this._delay(400);
 
     const body = {
       model: config.model,
@@ -31,30 +29,75 @@ const AI = {
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
+      max_tokens: 4096,
     };
 
-    // Report stage 2 (during API call)
     this._reportStage(onProgress, 2);
 
     const data = await this._callChatAPI(config, body);
 
-    // Report stage 3 (parsing)
-    this._reportStage(onProgress, 3);
-    await this._delay(200);
-
-    const content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('AI 返回的内容无法解析，请重试或调整目标描述');
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('AI 返回数据格式异常');
     }
 
-    const planData = JSON.parse(jsonMatch[0]);
+    const content = data.choices[0].message.content;
+    if (!content || content.trim().length === 0) {
+      throw new Error('AI 返回了空内容');
+    }
 
-    // Report stage 4 (finalizing)
+    if (data.choices[0].finish_reason === 'length') {
+      throw new Error('AI 输出被截断，请尝试简化目标描述或更换支持更长输出的模型');
+    }
+
+    this._reportStage(onProgress, 3);
+    await this._delay(300);
+
+    const planData = this._extractJSON(content);
+    if (!planData) {
+      throw new Error('AI 返回的内容无法解析为 JSON，请重试');
+    }
+
     this._reportStage(onProgress, 4);
-    await this._delay(200);
+    await this._delay(300);
 
     return this.convertToPlan(planData);
+  },
+
+  _extractJSON(content) {
+    if (!content) return null;
+
+    let text = content.trim();
+
+    // Remove markdown code block wrappers
+    text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // Direct parse attempt
+    try {
+      return JSON.parse(text);
+    } catch (e) { /* continue */ }
+
+    // Find the first { and last }
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const jsonStr = text.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(jsonStr);
+      } catch (e) { /* continue */ }
+
+      // Try to fix common issues: trailing commas
+      const cleaned = jsonStr
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*]/g, ']')
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'");
+      try {
+        return JSON.parse(cleaned);
+      } catch (e2) { /* continue */ }
+    }
+
+    return null;
   },
 
   _reportStage(onProgress, stageId) {
@@ -95,29 +138,30 @@ const AI = {
     await this._delay(200);
     this._reportStage(onProgress, 2);
 
-    const body = { model: config.model, messages, temperature: 0.7 };
+    const body = { model: config.model, messages, temperature: 0.7, max_tokens: 4096 };
     const data = await this._callChatAPI(config, body);
 
     this._reportStage(onProgress, 3);
-    await this._delay(150);
+    await this._delay(200);
     this._reportStage(onProgress, 4);
 
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      return { type: 'text', content: 'AI 返回数据格式异常' };
+    }
+
     const content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const planData = JSON.parse(jsonMatch[0]);
-        const plan = this.convertToPlan(planData);
-        return { type: 'plan', content: '好的，我已经根据你的反馈调整了计划：', plan };
-      } catch (e) { /* fall through */ }
+    const planData = this._extractJSON(content);
+
+    if (planData) {
+      const plan = this.convertToPlan(planData);
+      return { type: 'plan', content: '好的，我已经根据你的反馈调整了计划：', plan };
     }
 
     return { type: 'text', content: content.trim() };
   },
 
   async _callChatAPI(config, body) {
-    let apiUrl = config.apiUrl.replace(/\/+$/, '');
-
+    const apiUrl = config.apiUrl.replace(/\/+$/, '');
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${config.apiKey}`,
@@ -198,7 +242,7 @@ const AI = {
         duration: durationDays,
         dailyTasks: Math.ceil(leafNodes.filter(n => n.resetCycle === 'daily').length),
         stages: nodes.filter(n => !n.parentId).length,
-        maxDepth: Math.max(...nodes.map(n => n.depth || 1)),
+        maxDepth: nodes.length > 0 ? Math.max(...nodes.map(n => n.depth || 1)) : 1,
       },
     };
   },
@@ -226,15 +270,9 @@ const AI = {
     const apiKey = config.apiKey || '';
     const model = config.model || '';
 
-    if (!apiUrl) {
-      return { success: false, error: 'API 地址不能为空' };
-    }
-    if (!apiKey) {
-      return { success: false, error: 'API Key 不能为空' };
-    }
-    if (!model) {
-      return { success: false, error: '模型名称不能为空' };
-    }
+    if (!apiUrl) return { success: false, error: 'API 地址不能为空' };
+    if (!apiKey) return { success: false, error: 'API Key 不能为空' };
+    if (!model) return { success: false, error: '模型名称不能为空' };
 
     const headers = {
       'Content-Type': 'application/json',

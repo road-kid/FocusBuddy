@@ -275,20 +275,26 @@ const Chat = {
             <div class="progress-step-label">${Utils.escapeHtml(s.label)}</div>
             <div class="progress-step-desc">${Utils.escapeHtml(s.desc)}</div>
           </div>
+          ${isActive ? '<div class="progress-step-dots"><span></span><span></span><span></span></div>' : ''}
         </div>
       `;
     }).join('');
 
+    const typingText = currentStage < stages.length
+      ? stages.find(s => s.id === currentStage)?.label || '处理中'
+      : '完成';
+
     return `
       <div class="ai-progress-container">
+        <div class="ai-progress-typing">
+          <span class="ai-progress-typing-text">${Utils.escapeHtml(typingText)}</span><span class="ai-progress-cursor"></span>
+        </div>
         <div class="ai-progress-steps">
           ${stepsHtml}
         </div>
-        ${currentStage < stages.length ? `
-          <div class="ai-progress-bar">
-            <div class="ai-progress-bar-fill" style="width: ${(currentStage / stages.length) * 100}%;"></div>
-          </div>
-        ` : ''}
+        <div class="ai-progress-bar">
+          <div class="ai-progress-bar-fill" style="width: ${Math.min((currentStage / stages.length) * 100, 100)}%;"></div>
+        </div>
       </div>
     `;
   },
