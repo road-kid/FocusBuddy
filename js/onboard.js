@@ -310,10 +310,19 @@ const Onboard = {
         `;
       }).join('');
 
+      const rawContent = progress.rawContent || '';
+      const rawHtml = rawContent ? `
+        <details class="ai-raw-content">
+          <summary>查看 AI 原始输出</summary>
+          <pre>${Utils.escapeHtml(rawContent)}</pre>
+        </details>
+      ` : '';
+
       progressEl.innerHTML = `
         <div class="ai-progress-container" style="margin-top: var(--space-md);">
           <div class="ai-progress-steps">${stepsHtml}</div>
           <div class="ai-progress-bar"><div class="ai-progress-bar-fill" style="width: ${(currentStage / stages.length) * 100}%;"></div></div>
+          ${rawHtml}
         </div>
       `;
     };

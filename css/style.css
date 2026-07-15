@@ -2344,6 +2344,60 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
+/* Raw content collapsible */
+.ai-raw-content {
+  margin-top: var(--space-md);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.ai-raw-content summary {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  transition: background 0.15s;
+}
+
+.ai-raw-content summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-raw-content summary::before {
+  content: '▸';
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.ai-raw-content[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.ai-raw-content summary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ai-raw-content pre {
+  margin: 0;
+  padding: var(--space-md);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-base);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 /* ========== Desktop Adaptation ========== */
 @media (min-width: 768px) {
   body {

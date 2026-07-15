@@ -284,6 +284,14 @@ const Chat = {
       ? stages.find(s => s.id === currentStage)?.label || '处理中'
       : '完成';
 
+    const rawContent = progress.rawContent || '';
+    const rawHtml = rawContent ? `
+      <details class="ai-raw-content">
+        <summary>查看 AI 原始输出</summary>
+        <pre>${Utils.escapeHtml(rawContent)}</pre>
+      </details>
+    ` : '';
+
     return `
       <div class="ai-progress-container">
         <div class="ai-progress-typing">
@@ -295,6 +303,7 @@ const Chat = {
         <div class="ai-progress-bar">
           <div class="ai-progress-bar-fill" style="width: ${Math.min((currentStage / stages.length) * 100, 100)}%;"></div>
         </div>
+        ${rawHtml}
       </div>
     `;
   },
